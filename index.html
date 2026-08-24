@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>محاسبه حضور و غیاب ماهانه</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="Attendance.css" />
+</head>
+<body>
+    <fieldset class="app" id="app">
+        <legend class="header-legend">
+            <span class="header-title">محاسبه حضور و غیاب ماهانه</span>
+        </legend>
+
+        <div class="settings" id="settings">
+            <div class="settings-group">
+                <label for="yearSelect">سال</label>
+                <select id="yearSelect"></select>
+            </div>
+            <div class="settings-group">
+                <label for="monthSelect">ماه</label>
+                <select id="monthSelect"></select>
+            </div>
+            <div class="settings-group">
+                <label for="defaultEntry">ورود پیش‌فرض</label>
+                <input type="text" id="defaultEntry" value="09:00" maxlength="5" placeholder="HH:MM" />
+            </div>
+            <div class="settings-group">
+                <label for="defaultExit">پایان موظفی</label>
+                <input type="text" id="defaultExit" value="17:45" maxlength="5" placeholder="HH:MM" />
+            </div>
+            <div class="settings-group leave-balance-group">
+                <label for="leaveBalanceDays">موجودی مرخصی</label>
+                <div class="leave-balance-inputs" dir="ltr">
+                    <input type="number" id="leaveBalanceDays" value="0" min="0" step="1" aria-label="روز موجودی مرخصی" />
+                    <span>روز</span>
+                    <input type="number" id="leaveBalanceHours" value="0" min="0" max="23" step="1" aria-label="ساعت موجودی مرخصی" />
+                    <span>ساعت</span>
+                </div>
+                <span class="leave-balance-used" id="usedLeaveBalance">مصرف‌شده: ۰:۰۰</span>
+            </div>
+            <button class="btn btn-primary" id="calcBtn">محاسبه ماه</button>
+        </div>
+
+        <div class="summary" id="summaryContainer">
+            <div class="summary-card">
+                <div class="label">روزهای کاری</div>
+                <div class="value neutral" id="sumWorkdays">0</div>
+            </div>
+            <div class="summary-card">
+                <div class="label">مرخصی روز</div>
+                <div class="value neutral" id="sumLeaveDays">0</div>
+            </div>
+            <div class="summary-card">
+                <div class="label">مرخصی ساعتی</div>
+                <div class="value neutral" id="sumHourlyLeave">۰</div>
+            </div>
+            <div class="summary-card">
+                <div class="label">موجودی مرخصی</div>
+                <div class="value neutral" id="remainingLeave">۰</div>
+            </div>
+            <div class="summary-card">
+                <div class="label">جمعه‌ها</div>
+                <div class="value neutral" id="sumFridays">0</div>
+            </div>
+            <div class="summary-card">
+                <div class="label">تعطیلات رسمی</div>
+                <div class="value neutral" id="sumOfficialHolidays">0</div>
+            </div>
+            <div class="summary-card">
+                <div class="label">مجموع کسرکار</div>
+                <div class="value negative" id="sumShortage">۰۰:۰۰</div>
+            </div>
+            <div class="summary-card">
+                <div class="label">مجموع اضافه‌کار</div>
+                <div class="value positive" id="sumOvertime">۰۰:۰۰</div>
+            </div>
+            <div class="summary-card">
+                <div class="label">خالص</div>
+                <div class="value neutral" id="sumNet">۰۰:۰۰</div>
+            </div>
+            <div class="summary-card">
+                <div class="label">ساعات موظفی ماه</div>
+                <div class="value neutral" id="sumRequired">۰۰:۰۰</div>
+            </div>
+        </div>
+
+        <div class="toolbar" id="toolbar">
+            <div class="filters" id="filterContainer">
+                <button class="filter-btn active" data-filter="all">همه</button>
+                <button class="filter-btn" data-filter="workday">کاری</button>
+                <button class="filter-btn" data-filter="shortage">کسرکار</button>
+                <button class="filter-btn" data-filter="overtime">اضافه‌کار</button>
+                <button class="filter-btn" data-filter="leave">مرخصی روز</button>
+                <button class="filter-btn" data-filter="hourlyleave">مرخصی ساعتی</button>
+            </div>
+            <div class="toolbar-actions">
+                <button class="btn btn-success" id="exportBtn">📥 خروجی فایل</button>
+                <button class="btn btn-import" id="importBtn">📤 وارد کردن فایل</button>
+                <input type="file" id="importFile" accept=".csv,text/csv" hidden />
+                <button class="btn btn-danger" id="resetBtn">بازنشانی ماه</button>
+            </div>
+        </div>
+
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>روز</th>
+                        <th>تاریخ</th>
+                        <th>وضعیت</th>
+                        <th>تعطیل</th>
+                        <th>مرخصی روز</th>
+                        <th>ورود</th>
+                        <th>خروج</th>
+                        <th>حضور</th>
+                        <th>کسرکار</th>
+                        <th>اضافه‌کار</th>
+                        <th>مرخصی از ۱</th>
+                        <th>مرخصی تا ۱</th>
+                        <th>مرخصی از ۲</th>
+                        <th>مرخصی تا ۲</th>
+                        <th>مرخصی از ۳</th>
+                        <th>مرخصی تا ۳</th>
+                        <th>مرخصی استفاده‌شده</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody"></tbody>
+            </table>
+        </div>
+
+        <div class="footer-note">
+            <span class="copy">© ۱۴۰۵ تمامی حقوق محفوظ است</span>
+            <span class="author">برنامه نویس | نوید</span>
+        </div>
+    </fieldset>
+
+    <div class="toast" id="toast"></div>
+
+    <div class="import-preview-overlay" id="importPreview" hidden>
+        <div class="import-preview-box" role="dialog" aria-modal="true" aria-labelledby="importPreviewTitle">
+            <h2 id="importPreviewTitle">پیش‌نمایش اطلاعات واردشده</h2>
+            <p id="importPreviewInfo"></p>
+            <div class="import-preview-table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>تاریخ</th>
+                            <th>روز</th>
+                            <th>ورود</th>
+                            <th>خروج</th>
+                            <th>مرخصی ۱</th>
+                            <th>مرخصی ۲</th>
+                            <th>مرخصی ۳</th>
+                        </tr>
+                    </thead>
+                    <tbody id="importPreviewBody"></tbody>
+                </table>
+            </div>
+            <div class="import-preview-actions">
+                <button class="btn btn-primary" id="confirmImportBtn">تأیید و اعمال اطلاعات</button>
+                <button class="btn btn-confirm-cancel" id="cancelImportBtn">انصراف</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="Attendance.js"></script>
+</body>
+</html>

@@ -197,6 +197,7 @@
             const confirmImportBtn = $('#confirmImportBtn');
             const cancelImportBtn = $('#cancelImportBtn');
             const tableBody = $('#tableBody');
+            const emptyState = $('#emptyState');
             const filterContainer = $('#filterContainer');
             const toast = $('#toast');
 
@@ -981,6 +982,7 @@
                 }
 
                 tableBody.innerHTML = html;
+                emptyState.hidden = html !== '';
 
                 // --- Event listeners ---
 

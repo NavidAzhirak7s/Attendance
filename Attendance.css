@@ -568,6 +568,16 @@
             margin-top: 6px;
             letter-spacing: 0.3px;
         }
+        .empty-state {
+            margin: -8px 0 16px;
+            padding: 18px;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-sm);
+            color: var(--text-secondary);
+            background: var(--bg-card);
+            text-align: center;
+            font-size: 13px;
+        }
         .footer-note .copy {
             color: var(--text-secondary);
             font-weight: 500;

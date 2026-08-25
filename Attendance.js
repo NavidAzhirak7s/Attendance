@@ -306,25 +306,6 @@
                 if (!monthInfo) return [];
 
                 const daysInMonth = monthInfo.days;
-                const holidays = {
-                    '1/1': 'نوروز',
-                    '1/2': 'نوروز',
-                    '1/3': 'نوروز',
-                    '1/4': 'نوروز',
-                    '1/12': 'روز جمهوری اسلامی',
-                    '1/13': 'سیزده‌به‌در',
-                    '2/1': 'روز کارگر',
-                    '3/14': 'رحلت امام خمینی',
-                    '3/15': 'قیام ۱۵ خرداد',
-                    '4/20': 'تولد امام علی (ع)',
-                    '5/4': 'تولد امام زمان (عج)',
-                    '6/5': 'شهادت امام جعفر صادق (ع)',
-                    '6/17': 'شهادت امام رضا (ع)',
-                    '6/26': 'ارتحال پیامبر (ص)',
-                    '6/27': 'شهادت امام حسن مجتبی (ع)',
-                    '10/22': 'پیروزی انقلاب اسلامی',
-                    '11/5': 'تولد امام خمینی',
-                };
                 const result = [];
 
                 for (let d = 1; d <= daysInMonth; d++) {
@@ -337,26 +318,26 @@
                         offset += jalaliDaysInMonth(year, m);
                     }
                     offset += d - 1;
-                    const wd = (offset % 7); // 0=Sunday, 6=Saturday
+                    const wd = (1 + offset) % 7; // 0=Sunday, 6=Saturday
                     const isFriday = (wd === 6);
                     const isThursday = (wd === 5);
-                    const key = `${String(month).padStart(2, '0')}/${String(d).padStart(2, '0')}`;
-                    const isOfficialHoliday = holidays[key] !== undefined;
 
                     const stored = state.days[String(d)] || {};
                     let entry = stored.entry || null;
                     let exit = stored.exit || null;
                     const manualHoliday = stored.manualHoliday || false;
                     const isLeave = stored.isLeave || false;
+                    const fridayWork = stored.fridayWork || false;
                     const leaveStart = stored.leaveStart || null;
                     const leaveEnd = stored.leaveEnd || null;
 
-                    if (isFriday || manualHoliday || isLeave || isOfficialHoliday) {
+                    if (manualHoliday || isLeave || (isFriday && !fridayWork)) {
                         entry = null;
                         exit = null;
                     }
 
-                    const isWorkday = !isFriday && !manualHoliday && !isLeave && !isOfficialHoliday && !isThursday;
+                    const isOfficialHoliday = false;
+                    const isWorkday = !isFriday && !manualHoliday && !isLeave && !isThursday;
 
                     if (isWorkday) {
                         if (!entry) entry = state.defaultEntry;
@@ -376,6 +357,7 @@
                         isOfficialHoliday: isOfficialHoliday,
                         manualHoliday: manualHoliday,
                         isLeave: isLeave,
+                        fridayWork: fridayWork,
                         leaveStart: leaveStart,
                         leaveEnd: leaveEnd,
                         leaveStart2: stored.leaveStart2 || null,
@@ -392,7 +374,7 @@
             function isJalaliLeap(year) {
                 const diff = year - 1400;
                 const rem = ((diff % 4) + 4) % 4;
-                return rem === 0 || rem === 3;
+                return rem === 3;
             }
 
             function jalaliDaysInMonth(year, month) {
@@ -449,7 +431,7 @@
                 } = dayData;
                 const hourlyLeaveMin = getHourlyLeaveMinutes(dayData);
 
-                if (isFriday || isOfficialHoliday || manualHoliday) {
+                if (isOfficialHoliday || manualHoliday) {
                     return {
                         entry: null,
                         exit: null,
@@ -685,6 +667,23 @@
                     };
                 }
                 const actual = exitMin - entryMin;
+                if (isFriday && dayData.fridayWork) {
+                    return {
+                        entry: entry,
+                        exit: exit,
+                        presentMinutes: actual,
+                        shortageMinutes: 0,
+                        overtimeMinutes: actual,
+                        hasData: true,
+                        error: null,
+                        isLeave: false,
+                        isLeaveCovered: false,
+                        leaveDuration: 0,
+                        leaveShortage: 0,
+                        usedLeaveBalance: 0,
+                        hourlyLeaveMinutes: 0,
+                    };
+                }
                 if (actual > MAX_DAILY_HOURS) {
                     return {
                         entry: entry,
@@ -754,6 +753,18 @@
 
                 const normalized = normalizeTime(val);
                 if (normalized) {
+                    if (day && (field === 'entry' || field === 'exit')) {
+                        const current = state.days[day] || generateMonthData().find(item => String(item.day) === String(day)) || {};
+                        const entry = field === 'entry' ? normalized : current.entry;
+                        const exit = field === 'exit' ? normalized : current.exit;
+                        const entryMinutes = timeToMinutes(entry);
+                        const exitMinutes = timeToMinutes(exit);
+                        if (entryMinutes !== null && exitMinutes !== null && exitMinutes <= entryMinutes) {
+                            input.value = '';
+                            showToast('ساعت خروج باید بعد از ساعت ورود باشد');
+                            return null;
+                        }
+                    }
                     input.value = normalized;
                     if (day) {
                         if (!state.days[day]) {
@@ -799,7 +810,7 @@
 
                     let include = true;
                     if (filter === 'workday') {
-                        include = day.isWorkday && calc.hasData;
+                        include = day.isWorkday || day.isThursday || day.isFriday;
                     } else if (filter === 'shortage') {
                         include = calc.hasData && calc.shortageMinutes !== null && calc.shortageMinutes > 0;
                     } else if (filter === 'overtime') {
@@ -818,6 +829,7 @@
                     const manualHoliday = day.manualHoliday;
                     const isLeave = day.isLeave;
                     const isWorkday = day.isWorkday;
+                    const fridayWork = day.fridayWork === true;
 
                     let rowClass = '';
                     let statusBadge = '';
@@ -872,8 +884,8 @@
 
                     const entryVal = calc.entry || '';
                     const exitVal = calc.exit || '';
-                    const disabled = (isFriday || manualHoliday || isLeave || isOfficialHoliday) ? 'disabled' : '';
-                    const isCheckboxDisabled = (isFriday || isOfficialHoliday) ? 'disabled' : '';
+                    const disabled = (manualHoliday || isLeave || isOfficialHoliday || (isFriday && !fridayWork)) ? 'disabled' : '';
+                    const isCheckboxDisabled = isOfficialHoliday ? 'disabled' : '';
                     const holidayChecked = (manualHoliday && !isFriday && !isOfficialHoliday) ? 'checked' : '';
                     const leaveChecked = (isLeave && !isFriday && !isOfficialHoliday) ? 'checked' : '';
 
@@ -916,7 +928,7 @@
                         overtimeClass = 'cell-value cell-neutral';
                     }
 
-                    if (isFriday || manualHoliday || isOfficialHoliday) {
+                    if ((isFriday && !fridayWork) || manualHoliday || isOfficialHoliday) {
                         shortageStr = '۰';
                         overtimeStr = '۰';
                         shortageClass = 'cell-value cell-neutral';
@@ -951,10 +963,11 @@
                     html += `<td>${day.weekdayName}</td>`;
                     html += `<td>${formatJalaliDate(day.year, day.month, day.day)}</td>`;
                     html += `<td><span class="badge ${statusBadge}">${statusText} ${dotHtml}</span></td>`;
+                    const fridayCheck = isFriday ? (fridayWork ? 'checked' : '') : holidayChecked;
                     html +=
-                        `<td><input type="checkbox" class="holiday-check" data-day="${dayStr}" ${holidayChecked} ${isCheckboxDisabled} /></td>`;
+                        `<td><input type="checkbox" class="holiday-check" data-day="${dayStr}" ${fridayCheck} ${isCheckboxDisabled} /></td>`;
                     html +=
-                        `<td><input type="checkbox" class="leave-check" data-day="${dayStr}" ${leaveChecked} ${isCheckboxDisabled} /></td>`;
+                        `${isFriday ? '<td>—</td>' : `<td><input type="checkbox" class="leave-check" data-day="${dayStr}" ${leaveChecked} ${isCheckboxDisabled} /></td>`}`;
                     html +=
                         `<td><input type="text" class="time-input" value="${entryVal}" data-day="${dayStr}" data-field="entry" ${disabled} maxlength="5" placeholder="--:--" /></td>`;
                     html +=
@@ -1076,6 +1089,17 @@
                     chk.addEventListener('change', function(e) {
                         const day = this.dataset.day;
                         const checked = this.checked;
+                        const dayData = generateMonthData().find(item => String(item.day) === day);
+                        if (dayData?.isFriday) {
+                            if (!state.days[day]) state.days[day] = { entry: null, exit: null, manualHoliday: false, isLeave: false, leaveStart: null, leaveEnd: null };
+                            state.days[day].fridayWork = checked;
+                            state.days[day].entry = null;
+                            state.days[day].exit = null;
+                            saveToStorage();
+                            renderTable();
+                            applyFilter(state.filter);
+                            return;
+                        }
                         if (checked) {
                             const leaveChk = document.querySelector(`.leave-check[data-day="${day}"]`);
                             if (leaveChk) leaveChk.checked = false;
@@ -1175,14 +1199,14 @@
 
                 for (const day of monthData) {
                     const calc = dayResults[day.day] || calculateDay(day, state.leaveBalance);
-                    if (day.isFriday || day.manualHoliday || day.isOfficialHoliday) continue;
+                    if (day.manualHoliday || day.isOfficialHoliday) continue;
                     if (day.isLeave) {
                         leaveDayCount++;
                         continue;
                     }
                     if (day.isThursday && !calc.hasData) continue;
                     if (!calc.hasData) continue;
-                    workdayCount++;
+                    if (!day.isFriday) workdayCount++;
                     if (calc.shortageMinutes !== null) totalShortage += calc.shortageMinutes;
                     if (calc.overtimeMinutes !== null) totalOvertime += calc.overtimeMinutes;
                     if (calc.hourlyLeaveMinutes) totalHourlyLeave += calc.hourlyLeaveMinutes;
@@ -1206,7 +1230,7 @@
                 remainingLeave.textContent = formatDurationWordsPersian(remainingBalance);
                 usedLeaveBalance.textContent = `میزان مرخصی استفاده‌شده: ${formatDurationWordsPersian(totalLeaveUsedFromBalance)}`;
                 sumFridays.textContent = monthInfo.fridays;
-                sumOfficialHolidays.textContent = monthInfo.officialHolidays;
+                sumOfficialHolidays.textContent = '۰';
                 sumShortage.textContent = formatDurationWordsPersian(totalShortageAdjusted);
                 sumOvertime.textContent = formatDurationWordsPersian(totalOvertime);
 
@@ -1541,6 +1565,20 @@
                 applyFilter(state.filter);
             }
 
+            function allowNumericInput(event) {
+                const input = event.target;
+                if (!(input instanceof HTMLInputElement)) return;
+                const isTime = input.classList.contains('time-input') || input.id === 'defaultEntry' || input.id === 'defaultExit';
+                const isDigits = input.id === 'leaveBalanceDays' || input.id === 'leaveBalanceHours';
+                if (!isTime && !isDigits) return;
+                if (event.type === 'keydown') {
+                    if (event.ctrlKey || event.metaKey || event.altKey || ['Backspace', 'Delete', 'Tab', 'Enter', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+                    if (isTime ? !/^[0-9:]$/.test(event.key) : !/^[0-9]$/.test(event.key)) event.preventDefault();
+                } else {
+                    input.value = input.value.replace(isTime ? /[^0-9:]/g : /[^0-9]/g, '');
+                }
+            }
+
             // ============================================================
             //  INIT
             // ============================================================
@@ -1616,11 +1654,13 @@
                 });
 
                 document.addEventListener('keydown', (e) => {
+                    allowNumericInput(e);
                     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
                         e.preventDefault();
                         onMonthChange();
                     }
                 });
+                document.addEventListener('input', allowNumericInput);
 
                 // Show current month info
                 const cur = getCurrentJalali();

@@ -105,10 +105,10 @@
         }
 
         .settings {
-            display: grid;
-            grid-template-columns: repeat(4, minmax(125px, 1fr)) minmax(310px, 2fr) max-content;
+            display: flex;
+            flex-wrap: wrap;
             align-items: stretch;
-            gap: 10px;
+            gap: 8px;
             background: var(--bg-card);
             padding: 12px;
             border-radius: var(--radius-sm);
@@ -117,24 +117,26 @@
         }
         .settings-group {
             display: flex;
+            flex: 1 1 90px;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            gap: 5px;
+            gap: 4px;
             min-width: 0;
-            padding: 6px 8px;
+            padding: 4px 6px;
             border: 1px solid rgba(96, 165, 250, 0.16);
             border-radius: var(--radius-sm);
             background: rgba(15, 15, 26, 0.18);
         }
         .settings-group label {
             width: 100%;
-            font-size: 11px;
+            font-size: 10px;
             color: var(--text-secondary);
             font-weight: 500;
             text-align: center;
         }
         .leave-balance-group {
+            flex: 1.5 1 180px;
             gap: 5px;
             align-items: center;
         }
@@ -162,6 +164,7 @@
             align-self: center;
             min-width: 108px;
             min-height: 40px;
+            margin-inline-start: auto;
         }
         .settings select,
         .settings input[type="text"],
@@ -169,15 +172,15 @@
             background: var(--bg-input);
             border: 1px solid var(--border-color);
             color: var(--text-primary);
-            padding: 4px 10px;
+            padding: 4px 8px;
             border-radius: var(--radius-sm);
-            font-size: 13px;
+            font-size: 12px;
             font-family: var(--font);
-            height: 34px;
-            min-width: 80px;
+            height: 30px;
+            min-width: 66px;
             transition: var(--transition);
             outline: none;
-            width: 90px;
+            width: 72px;
             text-align: center;
             direction: ltr;
         }
@@ -186,6 +189,10 @@
         .settings input[type="number"]:focus {
             border-color: var(--text-secondary);
             box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.06);
+        }
+        .settings input.error {
+            border-color: var(--red);
+            box-shadow: 0 0 0 2px rgba(248, 113, 113, 0.2);
         }
         .settings select option {
             background: var(--bg-surface);

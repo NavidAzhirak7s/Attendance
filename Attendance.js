@@ -167,6 +167,7 @@
                 month: 1,
                 defaultEntry: '09:00',
                 defaultExit: '17:45',
+                defaultBreak: '00:00',
                 leaveBalance: 0,
                 days: {},
                 filter: 'all',
@@ -183,10 +184,10 @@
             const settings = $('#settings');
             const defaultEntryInput = $('#defaultEntry');
             const defaultExitInput = $('#defaultExit');
+            const defaultBreakInput = $('#defaultBreak');
             const leaveBalanceDaysInput = $('#leaveBalanceDays');
             const leaveBalanceHoursInput = $('#leaveBalanceHours');
             const usedLeaveBalance = $('#usedLeaveBalance');
-            const calcBtn = $('#calcBtn');
             const resetBtn = $('#resetBtn');
             const exportBtn = $('#exportBtn');
             const importBtn = $('#importBtn');
@@ -256,6 +257,7 @@
                         month: state.month,
                         defaultEntry: state.defaultEntry,
                         defaultExit: state.defaultExit,
+                        defaultBreak: state.defaultBreak,
                         leaveBalance: state.leaveBalance,
                         days: state.days,
                     };
@@ -271,10 +273,12 @@
                     if (data.year === state.year && data.month === state.month) {
                         if (data.defaultEntry) state.defaultEntry = data.defaultEntry;
                         if (data.defaultExit) state.defaultExit = data.defaultExit;
+                        if (data.defaultBreak) state.defaultBreak = data.defaultBreak;
                         if (data.leaveBalance !== undefined) state.leaveBalance = data.leaveBalance;
                         if (data.days) state.days = data.days;
                         defaultEntryInput.value = state.defaultEntry;
                         defaultExitInput.value = state.defaultExit;
+                        defaultBreakInput.value = state.defaultBreak;
                         setLeaveBalanceInputs(state.leaveBalance);
                         return true;
                     }
@@ -431,6 +435,7 @@
                     isLeave,
                 } = dayData;
                 const hourlyLeaveMin = getHourlyLeaveMinutes(dayData);
+                const defaultBreakMinutes = Math.max(0, timeToMinutes(state.defaultBreak) || 0);
 
                 if (isOfficialHoliday || manualHoliday) {
                     return {
@@ -549,7 +554,8 @@
                             hourlyLeaveMinutes: 0,
                         };
                     }
-                    const actual = exitMin - entryMin;
+                    const actualBeforeBreak = exitMin - entryMin;
+                    const actual = Math.max(0, actualBeforeBreak - defaultBreakMinutes);
                     if (actual > MAX_DAILY_HOURS) {
                         return {
                             entry: entry,
@@ -667,7 +673,8 @@
                         hourlyLeaveMinutes: 0,
                     };
                 }
-                const actual = exitMin - entryMin;
+                const actualBeforeBreak = exitMin - entryMin;
+                const actual = Math.max(0, actualBeforeBreak - defaultBreakMinutes);
                 if (isFriday && dayData.fridayWork) {
                     return {
                         entry: entry,
@@ -1497,6 +1504,8 @@
 
                 const entryNorm = normalizeTime(defaultEntryInput.value);
                 const exitNorm = normalizeTime(defaultExitInput.value);
+                const breakNorm = normalizeTime(defaultBreakInput.value);
+                const breakMinutes = breakNorm ? timeToMinutes(breakNorm) : null;
 
                 if (!entryNorm) {
                     defaultEntryInput.value = '09:00';
@@ -1512,9 +1521,25 @@
                     defaultExitInput.value = exitNorm;
                 }
 
+                if (!breakNorm || breakMinutes > 120) {
+                    defaultBreakInput.value = state.defaultBreak || '00:00';
+                    defaultBreakInput.setAttribute('aria-invalid', 'true');
+                    defaultBreakInput.classList.add('error');
+                    setTimeout(() => {
+                        defaultBreakInput.classList.remove('error');
+                        defaultBreakInput.setAttribute('aria-invalid', 'false');
+                    }, 2000);
+                    showToast('زمان استراحت مجاز نیست؛ حداکثر ۲ ساعت');
+                } else {
+                    defaultBreakInput.value = breakNorm;
+                    defaultBreakInput.setAttribute('aria-invalid', 'false');
+                    defaultBreakInput.classList.remove('error');
+                }
+
                 state.month = newMonth;
                 state.defaultEntry = defaultEntryInput.value;
                 state.defaultExit = defaultExitInput.value;
+                state.defaultBreak = defaultBreakInput.value;
                 const balance = readLeaveBalanceInputs();
                 state.leaveBalance = balance === null ? 0 : balance;
 
@@ -1533,6 +1558,9 @@
             function updateDefaults() {
                 const entryNorm = normalizeTime(defaultEntryInput.value);
                 const exitNorm = normalizeTime(defaultExitInput.value);
+                const breakValue = defaultBreakInput.value.trim();
+                const breakNorm = breakValue ? normalizeTime(breakValue) : '00:00';
+                const breakMinutes = breakNorm ? timeToMinutes(breakNorm) : 0;
 
                 if (entryNorm) {
                     defaultEntryInput.value = entryNorm;
@@ -1554,6 +1582,22 @@
                     defaultExitInput.value = state.defaultExit;
                 }
 
+                if (!breakNorm || breakMinutes === null || breakMinutes > 120) {
+                    defaultBreakInput.value = state.defaultBreak || '00:00';
+                    defaultBreakInput.setAttribute('aria-invalid', 'true');
+                    defaultBreakInput.classList.add('error');
+                    setTimeout(() => {
+                        defaultBreakInput.classList.remove('error');
+                        defaultBreakInput.setAttribute('aria-invalid', 'false');
+                    }, 2000);
+                    showToast('زمان استراحت مجاز نیست؛ حداکثر ۲ ساعت');
+                } else {
+                    defaultBreakInput.value = breakNorm;
+                    defaultBreakInput.setAttribute('aria-invalid', 'false');
+                    defaultBreakInput.classList.remove('error');
+                    state.defaultBreak = breakNorm;
+                }
+
                 const balance = readLeaveBalanceInputs();
                 if (balance !== null) {
                     state.leaveBalance = balance;
@@ -1570,7 +1614,7 @@
             function allowNumericInput(event) {
                 const input = event.target;
                 if (!(input instanceof HTMLInputElement)) return;
-                const isTime = input.classList.contains('time-input') || input.id === 'defaultEntry' || input.id === 'defaultExit';
+                const isTime = input.classList.contains('time-input') || input.id === 'defaultEntry' || input.id === 'defaultExit' || input.id === 'defaultBreak';
                 const isDigits = input.id === 'leaveBalanceDays' || input.id === 'leaveBalanceHours';
                 if (!isTime && !isDigits) return;
                 if (event.type === 'keydown') {
@@ -1589,10 +1633,13 @@
 
                 const entryNorm = normalizeTime(defaultEntryInput.value) || '09:00';
                 const exitNorm = normalizeTime(defaultExitInput.value) || '17:45';
+                const breakNorm = normalizeTime(defaultBreakInput.value) || '00:00';
                 defaultEntryInput.value = entryNorm;
                 defaultExitInput.value = exitNorm;
+                defaultBreakInput.value = breakNorm;
                 state.defaultEntry = entryNorm;
                 state.defaultExit = exitNorm;
+                state.defaultBreak = breakNorm;
                 const balance = readLeaveBalanceInputs();
                 state.leaveBalance = balance === null ? 0 : balance;
                 setLeaveBalanceInputs(state.leaveBalance);
@@ -1607,8 +1654,6 @@
 
                 // --- Event Listeners ---
 
-                calcBtn.addEventListener('click', onMonthChange);
-
                 monthSelect.addEventListener('change', function() {
                     state.month = parseInt(this.value, 10);
                     onMonthChange();
@@ -1620,6 +1665,7 @@
 
                 defaultEntryInput.addEventListener('blur', updateDefaults);
                 defaultExitInput.addEventListener('blur', updateDefaults);
+                defaultBreakInput.addEventListener('blur', updateDefaults);
                 leaveBalanceHoursInput.addEventListener('blur', updateDefaults);
                 leaveBalanceDaysInput.addEventListener('blur', updateDefaults);
 
